@@ -1,89 +1,34 @@
-import itertools
 import numpy as np
+import itertools
+import random
 
-def REF(matrix: np.ndarray) -> np.ndarray:
-    matrix = matrix.copy()  # Создаем копию матрицы, чтобы не изменять оригинал
-    m, n = matrix.shape
-    current_row = 0
+# Функция формирования проверочной матрицы кода Хэмминга
+def generate_hamming_h_matrix(r: int) -> np.ndarray:
+    n = 2 ** r - 1  # Число строк и столбцов
+    res = []
+    cur_r = r - 1
+    for i in range(n, 0, -1):
+        if i != 2 ** cur_r:
+            res.append(list(map(int, f"{i:0{r}b}")))
+        else:
+            cur_r -= 1
 
-    for col in range(n):
-        # Поиск строки с ненулевым элементом в текущем столбце
-        row_with_leading_one = current_row
-        while row_with_leading_one < m and matrix[row_with_leading_one, col] == 0:
-            row_with_leading_one += 1
+    # Единичная матрица r x r в нижней части
+    identity_matrix = np.eye(r, dtype=int)
 
-        if row_with_leading_one == m:
-            continue  # Нет ненулевых элементов в этом столбце, пропускаем
+    # Объединяем верхнюю часть и единичную матрицу
+    H = np.vstack((res, identity_matrix))
 
-        # Меняем строки местами, если ведущий элемент не в текущей строке
-        if row_with_leading_one != current_row:
-            matrix[[row_with_leading_one, current_row]] = matrix[[current_row, row_with_leading_one]]
+    return H
 
-        # Обнуляем все элементы ниже ведущего
-        for row_below in range(current_row + 1, m):
-            if matrix[row_below, col] == 1:
-                matrix[row_below] ^= matrix[current_row]
+# Функция для построения порождающей матрицы кода Хэмминга на основе проверочной матрицы
+def H_to_G(H: np.ndarray, r) -> np.ndarray:
+    k = 2 ** r - r - 1
+    res = np.eye(k, dtype=int)  # Единичная матрица
+    G = np.hstack((res, H[:k]))
+    return G
 
-        current_row += 1
-        if current_row == m:
-            break
-
-    # Удаляем строки, состоящие только из нулей
-    non_zero_rows = np.any(matrix, axis=1)
-    return matrix[non_zero_rows]
-
-
-def RREF(matrix: np.ndarray) -> np.ndarray:
-    matrix_copy = matrix.copy()  # Создаем глубокую копию матрицы, чтобы не изменять оригинал
-    m, n = matrix_copy.shape
-
-    # Идем снизу вверх по строкам
-    for current_row in range(m - 1, -1, -1):
-        leading_col = np.argmax(matrix_copy[current_row] != 0)
-        if matrix_copy[current_row, leading_col] == 0:
-            continue  # В строке только нули, пропускаем
-
-        # Обнуляем все элементы выше ведущего
-        for row_above in range(current_row):
-            if matrix_copy[row_above, leading_col] == 1:
-                matrix_copy[row_above] ^= matrix_copy[current_row]
-
-    return matrix_copy
-
-
-def standard_view(matrix: np.ndarray) -> np.ndarray:
-    matrix = matrix.copy()  # Копируем матрицу, чтобы не изменять оригинал
-    m, n = matrix.shape
-    identity_columns = []
-
-    # Находим позиции ведущих единичных элементов
-    for i in range(m):
-        for j in range(n):
-            if matrix[i, j] == 1 and np.all(matrix[:, j] == (np.eye(m)[i])):
-                identity_columns.append(j)
-                break
-
-    # Проверяем, можно ли создать единичную матрицу из выбранных столбцов
-    if len(identity_columns) != m:
-        raise ValueError("Невозможно привести матрицу к стандартному виду")
-
-    # Создаем перестановку столбцов: сначала identity_columns, затем остальные
-    remaining_columns = [j for j in range(n) if j not in identity_columns]
-    permuted_columns = identity_columns + remaining_columns
-
-    # Применяем перестановку к матрице
-    return matrix[:, permuted_columns]
-
-
-def h_matrix(matrix: np.ndarray) -> np.ndarray:
-    # Определяем размеры порождающей матрицы
-    m, n = matrix.shape
-    # Извлекаем дополнительную часть X (столбцы справа от единичной матрицы)
-    X = matrix[:, m:n]
-    identity_matrix = np.eye(n - m, dtype=int)
-    return np.vstack((X, identity_matrix))
-
-
+# Функция для построения таблицы синдромов
 def generate_syndrome_table(matrix: np.ndarray, error_weight: int) -> dict:
     n = matrix.shape[0]
     syndrome_table = {}
@@ -97,3 +42,50 @@ def generate_syndrome_table(matrix: np.ndarray, error_weight: int) -> dict:
 
     return syndrome_table
 
+# Функция для допущения и проверки ошибки
+def hamming_correction_test(G: np.ndarray, H: np.ndarray, syndrome_table: dict, error_degree: int, u: np.ndarray):
+    # Шаг 1: Выбираем случайное кодовое слово из G
+    print("Кодовое слово (u):", u)
+
+    # Шаг 2: Генерируем кодовое слово
+    v = u @ G % 2
+    print("Отправленное кодовое слово (v):", v)
+
+    # Шаг 3: Допускаем ошибку error_degree в принятом кодовом слове
+    error = np.zeros(v.shape[0], dtype=int)
+    error_indices = random.sample(range(v.shape[0]), error_degree)  # случайные индексы ошибок
+    for index in error_indices:
+        error[index] = 1
+    print("Допущенная ошибка:", error)
+
+    # Принятое слово с ошибкой
+    received_v = (v + error) % 2
+    print("Принятое с ошибкой слово:", received_v)
+
+    # Шаг 4: Вычисляем синдром принятого слова
+    syndrome = received_v @ H % 2
+    print("Синдром принятого сообщения:", syndrome)
+    if sum(syndrome) != 0:
+        print("Обнаружена ошибка!")
+
+    # Шаг 5: Проверяем синдром в таблице синдромов и корректируем ошибку
+    if tuple(syndrome) in syndrome_table:
+        correction_indices = syndrome_table[tuple(syndrome)]
+        for index in correction_indices:
+            received_v[index] = (received_v[index] + 1) % 2  # корректируем ошибку
+        print("Исправленное сообщение:", received_v)
+
+        # Проверка совпадения с отправленным сообщением
+        if np.array_equal(v, received_v):
+            print("Ошибка была исправлена успешно!")
+        else:
+            print("Ошибка не была исправлена корректно.")
+    else:
+        print("Синдрома нет в таблице, ошибка не исправлена.")
+
+def expand_G_matrix(G: np.ndarray) -> np.ndarray:
+    col = np.zeros((G.shape[0], 1), dtype=int)
+    for i in range(G.shape[0]):
+        if sum(G[i]) % 2 == 1:
+            col[i] = 1
+    return np.hstack((G, col))

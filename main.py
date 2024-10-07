@@ -1,134 +1,129 @@
-import random
 import methods
 import numpy as np
 
-if __name__ == "__main__":
-    print("Часть 1")
-    s_matrix = np.array([[1, 0, 0, 1, 0, 1, 1],
-                         [1, 1, 0, 0, 0, 0, 1],
-                         [0, 0, 1, 1, 0, 0, 1],
-                         [1, 0, 1, 0, 1, 0, 1],
-                         [0, 0, 1, 1, 1, 1, 0]])
-    G = methods.RREF(methods.REF(s_matrix))
-    print("Порождающая матрица G:", G, sep = "\n")
-    G_standard = methods.standard_view(G)
-    print("Порождающая матрица G в стандартном виде:", G_standard, sep = "\n")
-    print()
+if __name__ == '__main__':
 
-    H = methods.h_matrix(G_standard)
-    print("Проверочная матрица H:", H, sep = "\n")
-    print()
+    print("3.1\n")
 
+    r = 2
+    H = methods.generate_hamming_h_matrix(r)
+    print("Возьмем r = 2, получим проверочную матрицу следующего вида")
+    print(H)
+    print("\nПроверим функцию и построим порождающую матрицу")
+    G = methods.H_to_G(H, r)
+    print(G)
+
+    print("\n3.2\n")
+
+    print("Сформируем таблицу синдромов для всех единичных ошибок")
     syndrome_table = methods.generate_syndrome_table(H, 1)
-    print("Таблица синдромов:", syndrome_table, sep = "\n")
-    print()
+    print(syndrome_table)
+    print("\nПроведем исследование кода Хэмминга для ошибки кратности 1. Передаем сообщение длины 2^r - r - 1 = 2^2 - 2 - 1 = 1: 1 0 0 1")
+    methods.hamming_correction_test(G, H, syndrome_table, 1, np.array([1]))
+    print("\nКод успешно отловил ошибку и исправил ее. Теперь попробуем допустить двухкратную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 2, np.array([1]))
+    print("\nТак как код Хэмминга предназначен либо для исправления однократных ошибок, либо для обнаружения двухкратных, мы смогли обнаружить ошибку, но не смогли ее исправить. Попробуем теперь трехкратную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 3, np.array([1]))
+    print("\nЗдесь возможно два варианта:")
+    print("1. Синдрома в таблице синдромов для конкретной трехкратной ошибки нет. Ошибку в данном случае исправить не получится")
+    print("2. Синдром в таблице имеется, программа попытается исправить ошибку, но, конечно, результат будет неверным")
+    print("\nАналогично, проведем исследование для r = 3. Пересчитаем проверочную матрицу")
+    r = 3
+    H = methods.generate_hamming_h_matrix(r)
+    print(H)
+    print("\nПересчитаем G")
+    G = methods.H_to_G(H, r)
+    print(G)
+    print("\nИ составим заново таблицу синдромов")
+    syndrome_table = methods.generate_syndrome_table(H, 1)
+    print(syndrome_table)
+    print("\nПередаем слово длины 4: 1 0 0 1. Сначала допустим однократную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 1, np.array([1, 0, 0, 1]))
+    print("\nТеперь для двухкратной ошибки")
+    methods.hamming_correction_test(G, H, syndrome_table, 2, np.array([1, 0, 0, 1]))
+    print("\nИ для трехкратной ошибки")
+    methods.hamming_correction_test(G, H, syndrome_table, 3, np.array([1, 0, 0, 1]))
+    print("\nРезультаты аналогичны r = 2. Теперь проведем исследование для r = 4")
+    print("\nПересчитаем H")
+    r = 4
+    H = methods.generate_hamming_h_matrix(r)
+    print(H)
+    print("\nПересчитаем G")
+    G = methods.H_to_G(H, r)
+    print(G)
+    print("\nЗаново составим таблицу синдромов")
+    syndrome_table = methods.generate_syndrome_table(H, 1)
+    print(syndrome_table)
+    print("\nПередаем сообщение длины 11: 0 0 1 0 1 1 0 0 1 1 1. Допустим однократную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 1, np.array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1]))
+    print("\nТеперь допустим двухкратную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 2, np.array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1]))
+    print("\nИ, наконец, трехкратную ошибку")
+    methods.hamming_correction_test(G, H, syndrome_table, 3, np.array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1]))
+    print("\nРезультаты аналогичны r = 2, r = 3. Код Хэмминга позволяет либо исправлять однократную ошибку, либо обнаруживать двухкратную\n")
 
-    u = np.array([1, 0, 0, 1])
-    print("Кодовое слово длины k = 4:", u, sep = "\n")
-    v = u @ G_standard % 2
-    print("Отправленное кодовое слово длины n = 7:", v, sep = "\n")
-    error = np.array([0] * 7)
-    error[random.randint(0, 6)] = 1
-    print("Возникшая ошибка:", error, sep = "\n")
-    v = (v + error) % 2
-    print("Принятое с ошибкой слово:", v, sep = "\n")
-    syndrome = v @ H % 2
-    print("Синдром принятого сообщения:", syndrome, sep = "\n")
-    error = np.array([0] * 7)
-    error[syndrome_table[tuple(syndrome)][0]] = 1
-    v = (v + error) % 2
-    print("Исправленное сообщение:", v, sep = "\n")
-    print("Отправленное и исправленное сообщение совпадают")
-    print()
+    print("3.3\n")
 
-    print("Кодовое слово длины k = 4:", u, sep = "\n")
-    print("Отправленное кодовое слово длины n = 7:", v, sep = "\n")
-    error = np.zeros(7, dtype = int)
-    a, b = random.sample(range(7), 2)
-    error[a], error[b] = 1, 1
-    print("Возникшая ошибка:", error, sep = "\n")
-    v = (v + error) % 2
-    print("Принятое с ошибкой слово:", v, sep = "\n")
-    syndrome = v @ H % 2
-    print("Синдром принятого сообщения:", syndrome, sep = "\n")
-    error = np.array([0] * 7)
-    error[syndrome_table[tuple(syndrome)][0]] = 1
-    v = (v + error) % 2
-    print("Исправленное сообщение:", v, sep = "\n")
-    print("Отправленное и исправленное сообщение не совпадают")
-    print()
+    print("Возьмем r = 2. Проверочную матрицу H* расширенного кода Хэмминга можно построить на основе проверочной матрицы обычного кода Хэмминга")
+    r = 2
+    H = methods.generate_hamming_h_matrix(r)
+    H_exp = np.vstack((H, np.array([0] * H.shape[1])))
+    H_exp = np.hstack((H_exp, np.array([[1] * H_exp.shape[0]]).T))
+    print(H_exp)
+    print("\nПорождающую матрицу G* расширенного кода Хэмминга можно построить на основе порождающей матрицы обычного кода Хэмминга")
+    G = methods.H_to_G(H, r)
+    G_exp = methods.expand_G_matrix(G)
+    print(G_exp)
+    print("\nПостроим таблицу синдромов")
+    syndrome_table = methods.generate_syndrome_table(H_exp, 1)
+    print(syndrome_table)
 
+    print("\n3.4\n")
 
-    print("2 часть")
-    G_standard = np.array([[1,0,0,0,1,1,1,1,0,0,0,0],
-                            [0,1,0,0,0,1,1,1,1,1,0,0],
-                            [0,0,1,0,1,0,0,1,1,1,1,0],
-                            [0,0,0,1,0,0,1,1,0,0,1,1]])
-    print("Порождающая матрица G в стандартном виде:", G_standard, sep = "\n")
-    print()
-
-    H = methods.h_matrix(G_standard)
-    print("Проверочная матрица H:", H, sep = "\n")
-    print()
-
-    syndrome_table = methods.generate_syndrome_table(H, 2)
-    print("Таблица синдромов:", syndrome_table, sep = "\n")
-    print()
-
-    u = np.array([0, 0, 1, 0])
-    print("Кодовое слово длины k = 4:", u, sep = "\n")
-    v = u @ G_standard % 2
-    print("Отправленное кодовое слово длины n = 12:", v, sep = "\n")
-    error = np.array([0] * 12)
-    error[random.randint(0, 11)] = 1
-    print("Возникшая ошибка:", error, sep = "\n")
-    v = (v + error) % 2
-    print("Принятое с ошибкой слово:", v, sep = "\n")
-    syndrome = v @ H % 2
-    print("Синдром принятого сообщения:", syndrome, sep = "\n")
-    error = np.array([0] * 12)
-    for index in syndrome_table[tuple(syndrome)]:
-        error[index] = 1
-    v = (v + error) % 2
-    print("Исправленное сообщение:", v, sep = "\n")
-    print("Отправленное и исправленное сообщение совпадают")
-    print()
-
-    print("Кодовое слово длины k = 4:", u, sep = "\n")
-    print("Отправленное кодовое слово длины n = 12:", v, sep = "\n")
-    error = np.array([0] * 12)
-    a, b = random.sample(range(12), 2)
-    error[a], error[b] = 1, 1
-    print("Возникшая ошибка:", error, sep = "\n")
-    v = (v + error) % 2
-    print("Принятое с ошибкой слово:", v, sep = "\n")
-    syndrome = v @ H % 2
-    print("Синдром принятого сообщения:", syndrome, sep = "\n")
-    error = np.array([0] * 12)
-    for index in syndrome_table[tuple(syndrome)]:
-        error[index] = 1
-    v = (v + error) % 2
-    print("Исправленное сообщение:", v, sep = "\n")
-    print("Отправленное и исправленное сообщение совпадают")
-    print()
-
-    print("Кодовое слово длины k = 4:", u, sep = "\n")
-    print("Отправленное кодовое слово длины n = 12:", v, sep = "\n")
-    error = np.array([0] * 12)
-    a, b, c = random.sample(range(12), 3)
-    error[a], error[b], error[c] = 1, 1, 1
-    print("Возникшая ошибка:", error, sep = "\n")
-    v = (v + error) % 2
-    print("Принятое с ошибкой слово:", v, sep = "\n")
-    syndrome = v @ H % 2
-    print("Синдром принятого сообщения:", syndrome, sep = "\n")
-    error = np.array([0] * 12)
-    if tuple(syndrome) in syndrome_table:
-        for index in syndrome_table[tuple(syndrome)]:
-            error[index] = 1
-        v = (v + error) % 2
-        print("Исправленное сообщение:", v, sep = "\n")
-        print("Отправленное и исправленное сообщение не совпадают")
-        print()
-    else:
-        print("Синдрома, соответствующего данной ошибке, не найдено в таблице синдромов. Сообщение исправить невозможно.")
+    print("Проведем исследование для r = 2. Передаем сообщение длины 1: 1. Допускаем однократную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 1, np.array([1]))
+    print("\nДопускаем двухкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 2, np.array([1]))
+    print("\nДвухкратную ошибку исправить не удалось, но она была обнаружена")
+    print("\nДопускаем трехкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 3, np.array([1]))
+    print("\nТрехкратную ошибку также удалось обнаружить, но не исправить")
+    print("\nПроведем исследование для r = 3. Перепишем H")
+    r = 3
+    H = methods.generate_hamming_h_matrix(r)
+    H_exp = np.vstack((H, np.array([0] * H.shape[1])))
+    H_exp = np.hstack((H_exp, np.array([[1] * H_exp.shape[0]]).T))
+    print(H_exp)
+    print("\nЗаново составим G")
+    G = methods.H_to_G(H, r)
+    G_exp = methods.expand_G_matrix(G)
+    print(G_exp)
+    print("\nЗаново заполним таблицу синдромов")
+    syndrome_table = methods.generate_syndrome_table(H_exp, 1)
+    print(syndrome_table)
+    print("\nОтсылаем сообщение длины 4: 1 0 1 0. Допустим однократную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 1, np.array([1, 0, 1, 0]))
+    print("\nДопустим двухкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 2, np.array([1, 0, 1, 0]))
+    print("\nДопустим трехкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 3, np.array([1, 0, 1, 0]))
+    print("\nРезультаты аналогичны r = 2. Аналогичное исследование проведем для r = 4. Перепишем H")
+    r = 4
+    H = methods.generate_hamming_h_matrix(r)
+    H_exp = np.vstack((H, np.array([0] * H.shape[1])))
+    H_exp = np.hstack((H_exp, np.array([[1] * H_exp.shape[0]]).T))
+    print(H_exp)
+    print("\nЗаново составим G")
+    G = methods.H_to_G(H, r)
+    G_exp = methods.expand_G_matrix(G)
+    print(G_exp)
+    print("\nЗаново составим таблицу синдромов")
+    syndrome_table = methods.generate_syndrome_table(H_exp, 1)
+    print(syndrome_table)
+    print("\nОтсылаем сообщение длины 11: 1 0 0 1 1 1 1 0 1 1 0. Допустим однократную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 1, np.array([1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0]))
+    print("\nДопустим двухкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 2, np.array([1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0]))
+    print("\nДопустим трехкратную ошибку")
+    methods.hamming_correction_test(G_exp, H_exp, syndrome_table, 3, np.array([1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0]))
+    print("\nПолучили результаты аналогичные r = 2 и r = 3. Расширенный код Хэмминга позволяет исправлять однократные ошибки и обнаруживать двухкратные одновременно")
