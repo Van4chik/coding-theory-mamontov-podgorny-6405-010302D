@@ -1,91 +1,147 @@
 import numpy as np
-import itertools
 import random
 
-# Функция формирования проверочной матрицы кода Хэмминга
-def generate_hamming_h_matrix(r: int) -> np.ndarray:
-    n = 2 ** r - 1  # Число строк и столбцов
-    res = []
-    cur_r = r - 1
-    for i in range(n, 0, -1):
-        if i != 2 ** cur_r:
-            res.append(list(map(int, f"{i:0{r}b}")))
+# Функция для нахождения допущенной ошибки
+def get_error(w, H, B):
+    s = w @ H % 2
+    u1 = None
+    if sum(s) <= 3:
+        u1 = np.array(s)
+        u1 = np.hstack((u1, np.zeros(len(s), dtype=int)))
+    else:
+        for i in range(len(B)):
+            temp = (s + B[i]) % 2
+            if sum(temp) <= 2:
+                ei = np.zeros(len(s), dtype=int)
+                ei[i] = 1
+                u1 = np.hstack((temp, ei))
+    if u1 is not None:
+        u1
+    else:
+        sB = s @ B % 2
+        if sum(sB) <= 3:
+            u1 = np.hstack((np.zeros(len(s), dtype=int), sB))
         else:
-            cur_r -= 1
+            for i in range(len(B)):
+                temp = (sB + B[i]) % 2
+                if sum(temp) <= 2:
+                    ei = np.zeros(len(s), dtype=int)
+                    ei[i] = 1
+                    u1 = np.hstack((ei, temp))
+    return u1
 
-    # Единичная матрица r x r в нижней части
-    identity_matrix = np.eye(r, dtype=int)
-
-    # Объединяем верхнюю часть и единичную матрицу
-    H = np.vstack((res, identity_matrix))
-
-    return H
-
-# Функция для построения порождающей матрицы кода Хэмминга на основе проверочной матрицы
-def H_to_G(H: np.ndarray, r) -> np.ndarray:
-    k = 2 ** r - r - 1
-    res = np.eye(k, dtype=int)  # Единичная матрица
-    G = np.hstack((res, H[:k]))
-    return G
-
-# Функция для построения таблицы синдромов
-def generate_syndrome_table(matrix: np.ndarray, error_weight: int) -> dict:
-    n = matrix.shape[0]
-    syndrome_table = {}
-    for error in range(1, error_weight + 1):
-        for error_indices in itertools.combinations(range(n), error):
-            error_vector = np.zeros(n, dtype=int)
-            for index in error_indices:
-                error_vector[index] = 1
-            syndrome = error_vector @ matrix % 2
-            syndrome_table[tuple(map(int, syndrome))] = tuple(error_indices)
-
-    return syndrome_table
-
-# Функция для допущения и проверки ошибки
-def hamming_correction_test(G: np.ndarray, H: np.ndarray, syndrome_table: dict, error_degree: int, u: np.ndarray):
-    # Шаг 1: Выбираем случайное кодовое слово из G
-    print("Кодовое слово (u):", u)
-
-    # Шаг 2: Генерируем кодовое слово
-    v = u @ G % 2
-    print("Отправленное кодовое слово (v):", v)
-
-    # Шаг 3: Допускаем ошибку error_degree в принятом кодовом слове
-    error = np.zeros(v.shape[0], dtype=int)
-    error_indices = random.sample(range(v.shape[0]), error_degree)  # случайные индексы ошибок
+# Функция для допущения ошибки и поиска этой самой ошибки при помощи get_error()
+def gen_and_check_error(u, G, H, B, error_rate):
+    print("Исходное сообщение:", u)
+    w = u @ G % 2
+    print("Отправленное сообщение", w)
+    error = np.zeros(w.shape[0], dtype=int)
+    error_indices = random.sample(range(w.shape[0]), error_rate)
     for index in error_indices:
         error[index] = 1
     print("Допущенная ошибка:", error)
+    w = (w + error) % 2
+    print("Сообщение с ошибкой", w)
+    error = get_error(w, H, B)
+    print("Вызываем get_error, получаем ошибку:", error)
+    if error is None:
+        print("Ошибка обнаружена, исправить невозможно!")
+        return
+    message = (w + error) % 2
+    print("Исправленное отправленное сообщение:", message)
+    w = u @ G % 2
+    if (not np.array_equal(w, message)):
+        print("Сообщение было декодировано с ошибкой!")
 
-    # Принятое слово с ошибкой
-    received_v = (v + error) % 2
-    print("Принятое с ошибкой слово:", received_v)
+# Функция для формирования порождающей матрицы кода Рида-Маллера
+def reed_muller_generator_matrix(r: int, m: int) -> np.ndarray:
+    # Базовый случай: r = 0 -> вектор из 1 длины 2^m
+    if r == 0:
+        return np.ones((1, 2 ** m), dtype=int)
 
-    # Шаг 4: Вычисляем синдром принятого слова
-    syndrome = received_v @ H % 2
-    print("Синдром принятого сообщения:", syndrome)
-    if sum(syndrome) != 0:
-        print("Обнаружена ошибка!")
+    # Базовый случай: r = m -> G(m-1, m) и внизу вектор [0...01]
+    if r == m:
+        G_m_m_1_m = reed_muller_generator_matrix(m - 1, m)
+        bottom_row = np.zeros((1, 2 ** m), dtype=int)
+        bottom_row[0, -1] = 1
+        return np.vstack([G_m_m_1_m, bottom_row])
 
-    # Шаг 5: Проверяем синдром в таблице синдромов и корректируем ошибку
-    if tuple(syndrome) in syndrome_table:
-        correction_indices = syndrome_table[tuple(syndrome)]
-        for index in correction_indices:
-            received_v[index] = (received_v[index] + 1) % 2  # корректируем ошибку
-        print("Исправленное сообщение:", received_v)
+    # Рекурсивный случай: [[G(r, m-1), G(r, m-1)],[0, G(r-1, m-1)]]
+    G_r_m_m_1 = reed_muller_generator_matrix(r, m - 1)
+    G_r_m_1_m_m_1 = reed_muller_generator_matrix(r - 1, m - 1)
 
-        # Проверка совпадения с отправленным сообщением
-        if np.array_equal(v, received_v):
-            print("Ошибка была исправлена успешно!")
-        else:
-            print("Ошибка не была исправлена корректно.")
+    # Верхняя часть: G(r, m-1) дублируется
+    top = np.hstack([G_r_m_m_1, G_r_m_m_1])
+
+    # Нижняя часть: нули слева и G(r-1, m-1) справа
+    bottom = np.hstack([np.zeros((G_r_m_1_m_m_1.shape[0], G_r_m_1_m_m_1.shape[1]), dtype=int), G_r_m_1_m_m_1])
+
+    # Объединение верхней и нижней части
+    return np.vstack([top, bottom])
+
+# Функция для произведения Кронекера
+def kronecker_product(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    # Получаем размеры матриц
+    rows_A, cols_A = A.shape
+    rows_B, cols_B = B.shape
+
+    # Инициализируем результирующую матрицу
+    result = np.zeros((rows_A * rows_B, cols_A * cols_B), dtype=A.dtype)
+
+    # Вычисляем произведение Кронекера
+    for i in range(rows_A):
+        for j in range(cols_A):
+            result[i * rows_B:(i + 1) * rows_B, j * cols_B:(j + 1) * cols_B] = A[i, j] * B
+
+    return result
+
+# Функция для формирования H_m^i
+def H_matrix(H, m, i):
+    matrix = np.eye(2 ** (m - i), dtype=int)
+    matrix = kronecker_product(matrix, H)
+    matrix = kronecker_product(matrix, np.eye(2 ** (i - 1)))
+    return matrix
+
+# Функция, которая допускает ошибку в отправленном сообщении и исправляет ее
+def gen_and_check_error_RM(u, G, error_rate, m):
+    print("Исходное сообщение:", u)
+    w = u @ G % 2
+    print("Отправленное сообщение", w)
+    error = np.zeros(w.shape[0], dtype=int)
+    error_indices = random.sample(range(w.shape[0]), error_rate)
+    for index in error_indices:
+        error[index] = 1
+    print("Допущенная ошибка:", error)
+    w = (w + error) % 2
+    print("Сообщение с ошибкой", w)
+    for i in range(len(w)):
+        if w[i] == 0:
+            w[i] = -1
+    w_array = []
+    H = np.array([[1, 1], [1, -1]])
+    w_array.append(w @ H_matrix(H, m, 1))
+    for i in range(2, m + 1):
+        w_array.append(w_array[-1] @ H_matrix(H, m, i))
+    maximum = w_array[0][0]
+    index = -1
+    for i in range(len(w_array)):
+        for j in range(len(w_array[i])):
+            if abs(w_array[i][j]) > abs(maximum):
+                index = j
+                maximum = w_array[i][j]
+    counter = 0
+    for i in range(len(w_array)):
+        for j in range(len(w_array[i])):
+            if abs(w_array[i][j]) == abs(maximum):
+                counter += 1
+            if (counter > 1):
+                print("Невозможно исправить ошибку!")
+                return
+    message = list(map(int, list(('{' + f'0:0{m}b' + '}').format(index))))
+    if maximum > 0:
+        message.append(1)
     else:
-        print("Синдрома нет в таблице, ошибка не исправлена.")
-
-def expand_G_matrix(G: np.ndarray) -> np.ndarray:
-    col = np.zeros((G.shape[0], 1), dtype=int)
-    for i in range(G.shape[0]):
-        if sum(G[i]) % 2 == 1:
-            col[i] = 1
-    return np.hstack((G, col))
+        message.append(0)
+    print("Исправленное сообщение:", np.array(message[::-1]))
+    if (not np.array_equal(u, message)):
+        print("Сообщение было декодировано с ошибкой!")
